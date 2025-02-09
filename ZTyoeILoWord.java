@@ -9,6 +9,12 @@ import javalib.funworld.*;
 //represents a list of words
 interface ILoWord {
 
+	Util u = new Util();
+	int SCREEN_WIDTH = 600;
+	int SCREEN_HEIGHT = 800;
+	int MAX_COUNT = 6;
+	int fallingSpeed = 50;
+
 	// active words in the ILoWord are reduced by removing the first letter
 	// if the given string matches the first letter
 	ILoWord checkAndReduce(String letter);
@@ -21,15 +27,24 @@ interface ILoWord {
 
 	// draws all words
 	WorldScene draw(WorldScene ws);
-	
+
 	// updates the positions of all the words in the list
 	ILoWord updatePosition();
-	
+
 	// activates word that matches string
 	ILoWord activate(String key);
 
-	// counts words
+	// adds a total of 7 words on the list
+	ILoWord addWord();
+
+	// counts words and highkey creates them too
 	ILoWord addWordAcc(int acc);
+
+	// returns true if any of the words are at the bottom of the screen
+	boolean wordsAtBottom();
+	
+	// returns true if the list is successfully empty
+	boolean levelCompleted();
 }
 
 //represents an empty list of words
@@ -64,21 +79,30 @@ class MtLoWord implements ILoWord {
 	public ILoWord activate(String key) {
 		return this;
 	}
-	
-	// sorry, not great design here
-	Util u = new Util();
-	int SCREEN_WIDTH = 600;
-	// we will change the max count
-	int MAX_COUNT = 1;
-	
-	// creates 6 new words
+
+	// adds a total of 7 words on the list
+	public ILoWord addWord() {
+		return this.addWordAcc(0);
+	}
+
+	// 7 new words
 	public ILoWord addWordAcc(int acc) {
 		if (acc <= MAX_COUNT) {
-			IWord newWord = new InactiveWord(u.wordGenerate(), u.randXPos(), 0);
-			return this.addToEnd(newWord).addWordAcc(acc+1); }
-		else {
+			IWord newWord = new InactiveWord(u.wordGenerate(), u.randXPos(), -acc * fallingSpeed);
+			return this.addToEnd(newWord).addWordAcc(acc + 1);
+		} else {
 			return this;
 		}
+	}
+
+	// no words at bottom for empty list so returns false
+	public boolean wordsAtBottom() {
+		return false;
+	}
+
+	// returns true since the list has been succesesfully cleared
+	public boolean levelCompleted() {
+		return true;
 	}
 }
 
@@ -120,35 +144,48 @@ class ConsLoWord implements ILoWord {
 	public ILoWord updatePosition() {
 		return new ConsLoWord(this.first.updatePosition(), this.rest.updatePosition());
 	}
-	
+
 	// turns the desired word into an active word
 	public ILoWord activate(String key) {
 		if (this.first.compareFirst(key)) {
-			return new ConsLoWord(this.first.activate(), this.rest); }
-		else {
+			return new ConsLoWord(this.first.activate(), this.rest);
+		} else {
 			return (this.rest.activate(key)).addToEnd(this.first);
 		}
 	}
-	
-	// sorry, not great design here
-	Util u = new Util();
-	int SCREEN_WIDTH = 600;
-	// we will change the max count
-	int MAX_COUNT = 1;
-	
-	// creates 6 new words
+
+	// adds a total of 7 words on the list
+	public ILoWord addWord() {
+		return this.addWordAcc(0);
+	}
+
+	// creates 7 new words
 	public ILoWord addWordAcc(int acc) {
 		if (acc <= MAX_COUNT) {
-			IWord newWord = new InactiveWord(u.wordGenerate(), u.randXPos(), 0);
-			return this.addToEnd(newWord).addWordAcc(acc+1); }
-		else {
+			IWord newWord = new InactiveWord(u.wordGenerate(), u.randXPos(), -acc * fallingSpeed);
+			return this.addToEnd(newWord).addWordAcc(acc + 1);
+		} else {
 			return this;
 		}
+	}
+
+	// returns true if any of the words are at the bottom of the screen
+	public boolean wordsAtBottom() {
+		return this.first.wordsAtBottom() || this.rest.wordsAtBottom();
+	}
+
+	// returns false since the list has not been successfully cleared
+	public boolean levelCompleted() {
+		return false;
 	}
 }
 
 //represents a word in the ZType game
 interface IWord {
+
+	int SCREEN_WIDTH = 600;
+	int SCREEN_HEIGHT = 800;
+
 	// removes first letter from active words if it starts with given letter
 	IWord activeReduce(String letter);
 
@@ -157,15 +194,18 @@ interface IWord {
 
 	// draws each of the words in a WorldImage
 	WorldScene draw(WorldScene ws);
-	
+
 	// updates the position of a word
 	IWord updatePosition();
-	
+
 	// turns inactive word into active word
 	IWord activate();
-	
+
 	// compare first letter to given letter
 	boolean compareFirst(String key);
+
+	// returns true if the word is at the bottom of the screen
+	boolean wordsAtBottom();
 }
 
 //represents an active word in the ZType game
@@ -196,14 +236,17 @@ class ActiveWord implements IWord {
 
 	// draw this task as text
 	public WorldScene draw(WorldScene ws) {
-		return ws.placeImageXY(new TextImage(this.word, 20, Color.GREEN), this.x, this.y);
+		WorldImage imported = new FrozenImage(
+				new FromFileImage("C:\\Users\\yimin\\Downloads\\Anti-Polluter Scooter\\trash bag.png"));
+		WorldImage trashWithText = new OverlayImage(new TextImage(this.word, 20, Color.GREEN), imported);
+		return ws.placeImageXY(trashWithText, this.x, this.y);
 	}
 
 	// updates the position of a IWord (currently only moves downwards)
 	public IWord updatePosition() {
-		return new ActiveWord(this.word, this.x, this.y+20);
+		return new ActiveWord(this.word, this.x, this.y + 20);
 	}
-	
+
 	// activates already active word into itself
 	public IWord activate() {
 		return this;
@@ -212,6 +255,11 @@ class ActiveWord implements IWord {
 	// returns true since already active and is compared in activeReduce
 	public boolean compareFirst(String key) {
 		return true;
+	}
+
+	// returns true if word is at bottom
+	public boolean wordsAtBottom() {
+		return this.y == SCREEN_HEIGHT;
 	}
 }
 
@@ -239,14 +287,17 @@ class InactiveWord implements IWord {
 
 	// draw this task as text
 	public WorldScene draw(WorldScene ws) {
-		return ws.placeImageXY(new TextImage(this.word, 20, Color.BLUE), this.x, this.y);
+		WorldImage imported = new FrozenImage(
+				new FromFileImage("C:\\Users\\yimin\\Downloads\\Anti-Polluter Scooter\\trash bag.png"));
+		WorldImage trashWithText = new OverlayImage(new TextImage(this.word, 20, Color.CYAN), imported);
+		return ws.placeImageXY(trashWithText, this.x, this.y);
 	}
 
 	// updates position of inactive word (currently only moves downwards)
 	public IWord updatePosition() {
-		return new InactiveWord(this.word, this.x, this.y+20);
+		return new InactiveWord(this.word, this.x, this.y + 20);
 	}
-	
+
 	// changes an inactive word into an active word
 	public IWord activate() {
 		return new ActiveWord(this.word, this.x, this.y);
@@ -255,6 +306,11 @@ class InactiveWord implements IWord {
 	// compares first letter to given key
 	public boolean compareFirst(String key) {
 		return (this.word.length() > 0) && (this.word.substring(0, 1).equals(key));
+	}
+
+	// returns true if word is at bottom
+	public boolean wordsAtBottom() {
+		return this.y == SCREEN_HEIGHT;
 	}
 }
 
@@ -368,4 +424,3 @@ class Examples {
 						ws_ex.placeImageXY(new TextImage("two", 20, Color.YELLOW), 20, 25));
 	}
 }
-
